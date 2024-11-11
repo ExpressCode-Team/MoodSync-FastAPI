@@ -1,0 +1,7 @@
+numpy
+dlib
+mediapipe
+scikit-learn
+scikit-image
+fastapi[standard]
+uvicorn
