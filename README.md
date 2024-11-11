@@ -1,7 +1,7 @@
 # MoodSync-FastAPI
 
 ## Prasyarat
-1. [python](https://www.python.org/downloads/) (latest)
+1. [python](https://www.python.org/downloads/) (3.12.5)
 2. [cmake](https://cmake.org/download/) (latest)
 3. pip (latest)
 4. [git lfs](https://git-lfs.com/) (latest)
@@ -34,9 +34,11 @@ fastapi dev
 ```
 
 ## Catatan
-1. Apabila file dengan bentuk .pkl bisa dibuka dan berupa bentuk link (bukan file asli) maka dapat dinyatakan bahwa git lfs tidak bekerja dengan baik.
+1. Apabila file dengan bentuk .pkl bisa dibuka dan berisi bentuk link dari file tersebut **(bukan file asli)** maka dapat dinyatakan bahwa git lfs tidak bekerja dengan baik.
 
 Solusi: hubungi pengurus fastAPI ini untuk mendapat file .pkl di luar kode ini.
 
 
 Apabila masih terdapat pertanyaan bisa langsung bertanya ke pengurus fastAPI ini.
+
+dokumentasi fastAPI bisa dipelajari lebih lanjut melalui [link ini](https://fastapi.tiangolo.com/)
