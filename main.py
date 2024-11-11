@@ -82,9 +82,9 @@ async def predict_image(file: UploadFile = File(...)):
     if not os.path.exists('tmp'):
         os.makedirs('tmp')
 
-    # Periksa tipe file
-    if file.content_type.split('/')[0] != 'image':
-        return {"predict": "Invalid file type"}
+    # # Periksa tipe file
+    # if file.content_type.split('/')[0] != 'image':
+    #     return {"label": "Invalid file type"}
 
     # Simpan file sementara
     file_location = f"tmp/{file.filename}"
@@ -95,7 +95,7 @@ async def predict_image(file: UploadFile = File(...)):
     img = cv2.imread(file_location)
     if img is None:
         os.remove(file_location)
-        return {"predict": "Failed to read image"}
+        return {"label": "Failed to read image"}
 
     # Preprocess gambar dan deteksi landmark
     img_preprocessed = preprocess_img(img)
@@ -104,13 +104,13 @@ async def predict_image(file: UploadFile = File(...)):
     # Pastikan ada fitur yang berhasil diekstrak
     if not features_list:
         os.remove(file_location)
-        return {"predict": "No relevant landmarks detected"}
+        return {"label": "No relevant landmarks detected"}
 
     # Standarisasi fitur
     standardized_features = standardize_features(features_list)
     if standardized_features is None:
         os.remove(file_location)
-        return {"predict": "Failed to standardize features"}
+        return {"label": "Failed to standardize features"}
     
     pca_transformed_features = pca_features(standardized_features)
 
@@ -123,7 +123,7 @@ async def predict_image(file: UploadFile = File(...)):
     if isinstance(predict, np.ndarray):
         predict = predict.tolist()
 
-    return {"predict": predict, "label": label[predict[0]]}
+    return {"predict": str(predict), "label": label[predict[0]]}
 
 @app.post("/predict/dl/")
 async def predict_image(file: UploadFile = File(...)):
@@ -131,9 +131,9 @@ async def predict_image(file: UploadFile = File(...)):
     if not os.path.exists('tmp'):
         os.makedirs('tmp')
 
-    # Periksa tipe file
-    if file.content_type.split('/')[0] != 'image':
-        return {"predict": "Invalid file type"}
+    # # Periksa tipe file
+    # if file.content_type.split('/')[0] != 'image':
+    #     return {"label": "Invalid file type"}
 
     # Simpan file sementara
     file_location = f"tmp/{file.filename}"
@@ -144,13 +144,13 @@ async def predict_image(file: UploadFile = File(...)):
     img = cv2.imread(file_location)
     if img is None:
         os.remove(file_location)
-        return {"predict": "Failed to read image"}
+        return {"label": "Failed to read image"}
 
     img_preprocessed = preprocess_img(img)
     print(img_preprocessed.shape)
     if img_preprocessed is None:
         os.remove(file_location)
-        return {"predict": "Failed to preprocess image"}
+        return {"label": "Failed to preprocess image"}
     
     img_prepare = prepare_data(img_preprocessed)
     
@@ -161,4 +161,4 @@ async def predict_image(file: UploadFile = File(...)):
     if isinstance(predict, np.ndarray):
         predict = predict.tolist()
         
-    return {"predict": predict, "label": label[np.argmax(predict)]}
+    return {"predict": str(predict), "label": label[np.argmax(predict)]}
