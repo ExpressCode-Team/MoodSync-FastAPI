@@ -3,5 +3,6 @@ dlib
 mediapipe
 scikit-learn
 scikit-image
+tensorflow
 fastapi[standard]
 uvicorn
