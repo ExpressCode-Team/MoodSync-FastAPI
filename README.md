@@ -9,14 +9,29 @@
 ## Untuk Menjalankan
 1. Clone repository
 
-```git clone https://github.com/ExpressCode-Team/MoodSync-FastAPI.git```
+```
+git clone https://github.com/ExpressCode-Team/MoodSync-FastAPI.git
+```
 
-2. install semua keperluan library yang ada pada file ``requirement.txt``
+2. install semua keperluan library yang ada pada file `requirement.txt`
 
-```pip install -r requirement.txt```
+```
+pip install -r requirement.txt
+```
 
-+ dlib terkadang akan mengalami error apabila menggunakan `pip install dlib`
-3. jalankan 
++ dlib terkadang akan mengalami error apabila menggunakan `pip install dlib` untuk memperbaiki hal ini pastikan cmake telah terinstall dan download tar.gz dlib pada [link ini](https://pypi.org/project/dlib/#files) lalu lakukan `pip install "namafile.tar.gz"` pada terminal.
+
+3. jalankan kode ini
+
+```
+fastapi run
+```
+
+atau 
+
+```
+fastapi dev
+```
 
 ## Catatan
 1. Apabila file dengan bentuk .pkl bisa dibuka dan berupa bentuk link (bukan file asli) maka dapat dinyatakan bahwa git lsf tidak bekerja dengan baik.
