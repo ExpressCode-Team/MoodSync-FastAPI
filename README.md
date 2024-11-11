@@ -19,7 +19,7 @@ git clone https://github.com/ExpressCode-Team/MoodSync-FastAPI.git
 pip install -r requirement.txt
 ```
 
-+ dlib terkadang akan mengalami error apabila menggunakan `pip install dlib` untuk memperbaiki hal ini pastikan cmake telah terinstall dan download tar.gz dlib pada [link ini](https://pypi.org/project/dlib/#files) lalu lakukan `pip install "namafile.tar.gz"` pada terminal.
++ dlib terkadang akan mengalami error apabila menggunakan `pip install dlib` untuk memperbaiki hal ini pastikan cmake telah terinstall dan path cmake sudah ada pada environtment variable serta download tar.gz dlib pada [link ini](https://pypi.org/project/dlib/#files) lalu lakukan `pip install path/to/namafile.tar.gz` pada terminal.
 
 3. jalankan kode ini
 
