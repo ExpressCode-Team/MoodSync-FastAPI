@@ -22,7 +22,7 @@ with open('scaler.pkl', 'rb') as file:
     scaler = pickle.load(file)
 
 with open('pca.pkl', 'rb') as file:
-    pca = pickle.load(file)
+    pca = pickle.load(file) 
 
 def preprocess_img(img, size=(128, 128)):
     faces = face_cascade.detectMultiScale(
