@@ -186,7 +186,7 @@ def get_test(access_token: str = Query(..., description="Spotify Access Token"))
         raise HTTPException(status_code=response.status_code, detail="Failed to validate token with Spotify API")
 
 # Mendapatkan lagu dengan ID dari spotify
-@app.get("/spotify/get_track")
+@app.get("/spotify/get-track")
 def get_track(id: str = Query(..., description="Spotify track ID"), access_token: str = Query(..., description="Spotify Access Token")):
     
     url = f"https://api.spotify.com/v1/tracks/{id}"
@@ -241,21 +241,15 @@ async def recommend_song_endpoint(emotion: str, access_token: str):
 # Get playlist dari spotify
 @app.get("/spotify/get-playlists/")
 def get_playlists(access_token: str = Query(..., description="Spotify Access Token")):
-    """
-    Endpoint untuk mendapatkan daftar playlist pengguna.
-    """
-    # Spotify API URL untuk mendapatkan playlist
+
     url = "https://api.spotify.com/v1/me/playlists"
 
-    # Header dengan access token
     headers = {
         "Authorization": f"Bearer {access_token}"
     }
 
-    # Request ke Spotify API
     response = requests.get(url, headers=headers)
 
-    # Jika berhasil
     if response.status_code == 200:
         playlists = response.json()
         return {
@@ -276,34 +270,27 @@ def get_playlists(access_token: str = Query(..., description="Spotify Access Tok
 import requests
 from fastapi import FastAPI, HTTPException, Query
 
-# Add Track To Spotify
+# Tambahkan Track ke Spotify Playlist
 @app.post("/spotify/add-to-playlist/")
 def add_to_playlist(
     playlist_id: str = Query(..., description="Spotify Playlist ID"),
     track_id: str = Query(..., description="Spotify Track ID"),
     access_token: str = Query(..., description="Spotify Access Token")
 ):
-    """
-    Endpoint untuk menambahkan sebuah lagu ke playlist Spotify.
-    """
-    # Spotify API URL untuk menambahkan lagu ke playlist
+    
     url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
 
-    # Header dengan access token
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
 
-    # Data untuk ditambahkan (track URIs)
     data = {
         "uris": [f"spotify:track:{track_id}"]
     }
 
-    # Request ke Spotify API
     response = requests.post(url, headers=headers, json=data)
 
-    # Jika berhasil
     if response.status_code == 201:
         return {"message": "Track successfully added to playlist"}
     elif response.status_code == 401:
