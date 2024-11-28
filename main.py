@@ -1,27 +1,30 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 import mediapipe as mp
 import numpy as np
 import pickle
 import cv2
 import os
 import shutil
+import requests
+import random
+import pandas as pd
 
 app = FastAPI()
 
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'data/haarcascade_frontalface_default.xml')
 mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
 label = ['angry', 'happy', 'neutral', 'sad']
 
-with open('model.pkl', 'rb') as file:
+with open('model/model.pkl', 'rb') as file:
     modelml = pickle.load(file)
     
-with open('modeldl.pkl', 'rb') as file:
+with open('model/modeldl.pkl', 'rb') as file:
     modeldl = pickle.load(file)
 
-with open('scaler.pkl', 'rb') as file:
+with open('model/scaler.pkl', 'rb') as file:
     scaler = pickle.load(file)
 
-with open('pca.pkl', 'rb') as file:
+with open('model/pca.pkl', 'rb') as file:
     pca = pickle.load(file) 
 
 def preprocess_img(img, size=(128, 128)):
@@ -162,3 +165,75 @@ async def predict_image(file: UploadFile = File(...)):
         predict = predict.tolist()
         
     return {"predict": str(predict), "label": label[np.argmax(predict)]}
+
+# Add test API
+@app.get("/spotify/test")
+def get_test(access_token: str = Query(..., description="Spotify Access Token")):
+
+    url = "https://api.spotify.com/v1/me"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        return {"message": "Request and access token accepted by FastAPI"}
+    elif response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Access Token")
+    else:
+        raise HTTPException(status_code=response.status_code, detail="Failed to validate token with Spotify API")
+
+# Mendapatkan lagu dengan ID dari spotify
+@app.get("/spotify/get/track")
+def get_track(id: str = Query(..., description="Spotify track ID"), access_token: str = Query(..., description="Spotify Access Token")):
+    
+    url = f"https://api.spotify.com/v1/tracks/{id}"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Access Token")
+    elif response.status_code == 404:
+        raise HTTPException(status_code=404, detail="Track not found")
+    else:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+
+# Rekomendasi lagu
+data = pd.read_csv('data/data_moods.csv')
+
+mood_mapping = {
+    "sad": ["Calm", "Happy", "Sad"],
+    "angry": ["Calm", "Energetic"],
+    "happy": ["Calm", "Happy", "Sad"],
+    "neutral": None 
+}
+
+def recommend_song(emotion, data):
+    if emotion.lower() == "neutral":
+        song_id = random.choice(data["id"].tolist())
+    else:
+        allowed_moods = mood_mapping.get(emotion.lower(), [])
+        filtered_data = data[data["mood"].str.capitalize().isin(allowed_moods)]
+        if not filtered_data.empty:
+            song_id = random.choice(filtered_data["id"].tolist())
+        else:
+            song_id = None
+    return song_id
+
+@app.post("/spotify/recommend-song/")
+async def recommend_song_endpoint(emotion: str, access_token: str):
+    song_id = recommend_song(emotion, data)  
+    if song_id:
+        # Panggil /spotify/get/track untuk mendapatkan info lagu
+        track_info = get_track(id=song_id, access_token=access_token)
+        return {"song_id": song_id, "track_info": track_info}
+    else:
+        raise HTTPException(status_code=404, detail="No recommendation available for the given emotion")
