@@ -167,10 +167,10 @@ async def predict_image(file: UploadFile = File(...)):
     return {"predict": str(predict), "label": label[np.argmax(predict)]}
 
 """
-    Memvalidasi token akses Spotify dengan memeriksa respons dari API.
+Memvalidasi token akses Spotify dengan memeriksa respons dari API.
     
-    Args:
-        access_token (str): Token Akses Spotify pengguna.
+Args:
+    access_token (str): Token Akses Spotify pengguna.
 """
 
 @app.get("/spotify/test")
@@ -281,7 +281,7 @@ async def recommend_songs_endpoint(
 
 """
 Mengambil daftar playlist milik pengguna dari Spotify.
-    
+
 Args:
     access_token (str): Token Akses Spotify pengguna.
 """
@@ -356,20 +356,22 @@ def add_to_playlist(
         raise HTTPException(status_code=response.status_code, detail=response.json())
 
 """
-Membuat playlist baru di Spotify.
+Membuat playlist dan menambahkan lagu baru di Spotify.
 
 Args:
     name (str): Nama playlist yang ingin dibuat.
     description (str): Deskripsi playlist (opsional, default kosong).
     public (bool): Status publik atau privat untuk playlist (default True = publik).
     access_token (str): Spotify Access Token untuk autentikasi.
+    tracks ids (str): Id dari track yang akan ditambahkan kedalam playlist.
 """
 
 @app.post("/spotify/create-playlist/")
-def create_playlist(
+def create_playlist_with_tracks(
     name: str = Query(..., description="Nama playlist yang akan dibuat"),
     description: str = Query("", description="Deskripsi playlist"),
     public: bool = Query(True, description="Apakah playlist bersifat publik?"),
+    track_ids: list[str] = Query(..., description="Daftar Spotify Track IDs untuk ditambahkan ke playlist"),
     access_token: str = Query(..., description="Spotify Access Token")
 ):
     user_profile_url = "https://api.spotify.com/v1/me"
@@ -380,11 +382,11 @@ def create_playlist(
 
     user_response = requests.get(user_profile_url, headers=headers)
     if user_response.status_code != 200:
-        raise HTTPException(status_code=user_response.status_code, detail="Failed to fetch user profile")
+        raise HTTPException(status_code=user_response.status_code, detail="Gagal mengambil profil pengguna")
 
     user_id = user_response.json().get("id")
     if not user_id:
-        raise HTTPException(status_code=400, detail="Failed to extract user ID from profile")
+        raise HTTPException(status_code=400, detail="Gagal mendapatkan user ID dari profil")
 
     create_playlist_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
     payload = {
@@ -394,9 +396,27 @@ def create_playlist(
     }
 
     response = requests.post(create_playlist_url, headers=headers, json=payload)
-    if response.status_code == 201:
-        return response.json()
-    elif response.status_code == 401:
-        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Access Token")
-    else:
+    if response.status_code != 201:
         raise HTTPException(status_code=response.status_code, detail=response.json())
+
+    playlist_id = response.json().get("id")
+
+    if track_ids:
+        add_tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        uris = [f"spotify:track:{track_id}" for track_id in track_ids]
+        add_tracks_payload = {
+            "uris": uris
+        }
+
+        add_tracks_response = requests.post(add_tracks_url, headers=headers, json=add_tracks_payload)
+        if add_tracks_response.status_code != 201:
+            raise HTTPException(
+                status_code=add_tracks_response.status_code,
+                detail=f"Gagal menambahkan lagu ke playlist: {add_tracks_response.json()}"
+            )
+
+    return {
+        "message": "Playlist berhasil dibuat dan lagu berhasil ditambahkan",
+        "playlist_id": playlist_id,
+        "playlist_url": f"https://open.spotify.com/playlist/{playlist_id}"
+    }
