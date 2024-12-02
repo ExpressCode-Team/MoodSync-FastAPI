@@ -166,7 +166,13 @@ async def predict_image(file: UploadFile = File(...)):
         
     return {"predict": str(predict), "label": label[np.argmax(predict)]}
 
-# Add test API
+"""
+    Memvalidasi token akses Spotify dengan memeriksa respons dari API.
+    
+    Args:
+        access_token (str): Token Akses Spotify pengguna.
+"""
+
 @app.get("/spotify/test")
 def get_test(access_token: str = Query(..., description="Spotify Access Token")):
 
@@ -185,7 +191,14 @@ def get_test(access_token: str = Query(..., description="Spotify Access Token"))
     else:
         raise HTTPException(status_code=response.status_code, detail="Failed to validate token with Spotify API")
 
-# Mendapatkan lagu dengan ID dari spotify
+"""
+Mengambil detail lagu berdasarkan ID track Spotify.
+    
+Args:
+    id (str): ID track Spotify.
+    access_token (str): Token Akses Spotify pengguna.
+"""
+
 @app.get("/spotify/get-track")
 def get_track(id: str = Query(..., description="Spotify track ID"), access_token: str = Query(..., description="Spotify Access Token")):
     
@@ -206,7 +219,14 @@ def get_track(id: str = Query(..., description="Spotify track ID"), access_token
     else:
         raise HTTPException(status_code=response.status_code, detail=response.json())
 
-# Rekomendasi lagu
+"""
+Mendapatkan rekomendasi lagu berdasarkan emosi
+Args:
+    emotion (str): Emosi pengguna (happy, sad, angry, neutral).
+    access_token (str): Spotify Access Token.
+    num_songs (int): Jumlah lagu yang direkomendasikan (isi dengan jumlah lagunya, default 10).
+"""
+
 data = pd.read_csv('data/data_moods.csv')
 
 mood_mapping = {
@@ -216,29 +236,56 @@ mood_mapping = {
     "neutral": None 
 }
 
-def recommend_song(emotion, data):
-    if emotion.lower() == "neutral":
-        song_id = random.choice(data["id"].tolist())
-    else:
-        allowed_moods = mood_mapping.get(emotion.lower(), [])
-        filtered_data = data[data["mood"].str.capitalize().isin(allowed_moods)]
-        if not filtered_data.empty:
-            song_id = random.choice(filtered_data["id"].tolist())
+@app.post("/spotify/recommend-songs/")
+async def recommend_songs_endpoint(
+    emotion: str,
+    access_token: str,
+    num_songs: int = 10
+):
+    def recommend_songs(emotion, data, num_songs=10):
+        if emotion.lower() == "neutral":
+            song_ids = random.sample(data["id"].tolist(), min(num_songs, len(data)))
         else:
-            song_id = None
-    return song_id
+            allowed_moods = mood_mapping.get(emotion.lower(), [])
+            filtered_data = data[data["mood"].str.capitalize().isin(allowed_moods)]
+            if not filtered_data.empty:
+                song_ids = random.sample(filtered_data["id"].tolist(), min(num_songs, len(filtered_data)))
+            else:
+                song_ids = []
+        return song_ids
 
-@app.post("/spotify/recommend-song/")
-async def recommend_song_endpoint(emotion: str, access_token: str):
-    song_id = recommend_song(emotion, data)  
-    if song_id:
-        # Panggil /spotify/get/track untuk mendapatkan info lagu
-        track_info = get_track(id=song_id, access_token=access_token)
-        return {"song_id": song_id, "track_info": track_info}
+    song_ids = recommend_songs(emotion, data, num_songs=num_songs)
+    
+    if song_ids:
+        tracks_info = []
+        for song_id in song_ids:
+            try:
+                track_info = get_track(id=song_id, access_token=access_token)
+                tracks_info.append({
+                    "id": song_id,
+                    "name": track_info.get("name"),
+                    "artists": [artist["name"] for artist in track_info.get("artists", [])],
+                    "album": track_info.get("album", {}).get("name"),
+                    "preview_url": track_info.get("preview_url"),
+                    "external_url": track_info.get("external_urls", {}).get("spotify")
+                })
+            except HTTPException as e:
+                continue
+
+        if tracks_info:
+            return {"songs": tracks_info}
+        else:
+            raise HTTPException(status_code=404, detail="Failed to retrieve details for recommended songs")
     else:
-        raise HTTPException(status_code=404, detail="No recommendation available for the given emotion")
+        raise HTTPException(status_code=404, detail="No recommendations available for the given emotion")
 
-# Get playlist dari spotify
+"""
+Mengambil daftar playlist milik pengguna dari Spotify.
+    
+Args:
+    access_token (str): Token Akses Spotify pengguna.
+"""
+
 @app.get("/spotify/get-playlists/")
 def get_playlists(access_token: str = Query(..., description="Spotify Access Token")):
 
@@ -270,7 +317,15 @@ def get_playlists(access_token: str = Query(..., description="Spotify Access Tok
 import requests
 from fastapi import FastAPI, HTTPException, Query
 
-# Tambahkan Track ke Spotify Playlist
+"""
+Menambahkan lagu ke dalam playlist di Spotify.
+
+Args:
+    playlist_id (str): ID dari playlist Spotify yang akan ditambahkan lagu.
+    track_id (str): ID dari track (lagu) Spotify yang ingin ditambahkan ke playlist.
+    access_token (str): Spotify Access Token untuk autentikasi.
+"""
+
 @app.post("/spotify/add-to-playlist/")
 def add_to_playlist(
     playlist_id: str = Query(..., description="Spotify Playlist ID"),
