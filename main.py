@@ -275,12 +275,6 @@ async def predict_image(file: UploadFile = File(...)):
 
     return {"predict": str(predict), "label": label[predict[0]]}
 
-from fastapi import FastAPI, HTTPException, Query
-import random
-import pandas as pd
-
-app = FastAPI()
-
 """
 Memvalidasi token akses Spotify dengan memeriksa respons dari API.
     
