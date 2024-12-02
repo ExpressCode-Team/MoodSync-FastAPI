@@ -354,3 +354,49 @@ def add_to_playlist(
         raise HTTPException(status_code=404, detail="Playlist or Track not found")
     else:
         raise HTTPException(status_code=response.status_code, detail=response.json())
+
+"""
+Membuat playlist baru di Spotify.
+
+Args:
+    name (str): Nama playlist yang ingin dibuat.
+    description (str): Deskripsi playlist (opsional, default kosong).
+    public (bool): Status publik atau privat untuk playlist (default True = publik).
+    access_token (str): Spotify Access Token untuk autentikasi.
+"""
+
+@app.post("/spotify/create-playlist/")
+def create_playlist(
+    name: str = Query(..., description="Nama playlist yang akan dibuat"),
+    description: str = Query("", description="Deskripsi playlist"),
+    public: bool = Query(True, description="Apakah playlist bersifat publik?"),
+    access_token: str = Query(..., description="Spotify Access Token")
+):
+    user_profile_url = "https://api.spotify.com/v1/me"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    user_response = requests.get(user_profile_url, headers=headers)
+    if user_response.status_code != 200:
+        raise HTTPException(status_code=user_response.status_code, detail="Failed to fetch user profile")
+
+    user_id = user_response.json().get("id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Failed to extract user ID from profile")
+
+    create_playlist_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
+    payload = {
+        "name": name,
+        "description": description,
+        "public": public
+    }
+
+    response = requests.post(create_playlist_url, headers=headers, json=payload)
+    if response.status_code == 201:
+        return response.json()
+    elif response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Access Token")
+    else:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
