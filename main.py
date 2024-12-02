@@ -13,7 +13,7 @@ from math import acos, degrees
 
 app = FastAPI()
 
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'file/haarcascade_frontalface_default.xml')
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor("file/shape_predictor_68_face_landmarks.dat")
