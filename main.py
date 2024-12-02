@@ -1,8 +1,11 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 import dlib
 import mediapipe as mp
 import numpy as np
+import pandas as pd
+import random
 import pickle
+import requests
 import cv2
 import os
 import shutil
@@ -10,19 +13,19 @@ from math import acos, degrees
 
 app = FastAPI()
 
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'file/haarcascade_frontalface_default.xml')
 mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
 detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+predictor = dlib.shape_predictor("file/shape_predictor_68_face_landmarks.dat")
 label = ['angry', 'happy', 'neutral', 'sad']
 
-with open('file/model.pkl', 'rb') as file:
+with open('model/model.pkl', 'rb') as file:
     modelml = pickle.load(file)
     
-with open('file/modeldl.pkl', 'rb') as file:
+with open('model/modeldl.pkl', 'rb') as file:
     modeldl = pickle.load(file)
 
-with open('file/scaler.pkl', 'rb') as file:
+with open('model/scaler.pkl', 'rb') as file:
     scaler = pickle.load(file)
 
 
@@ -31,7 +34,7 @@ def preprocess_img(img, size=(128, 128)):
     if len(faces) > 0:
         (x, y, w, h) = faces[0]
         img = img[y:y+h, x:x+w]
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len (img.shape) == 3 else img
         img = cv2.resize(img, size, interpolation=cv2.INTER_LANCZOS4)
     return img
 
@@ -142,7 +145,7 @@ async def root():
     return {"message": "Hello World"}
 
 
-@app.post("/predict/ml/")
+@app.post("/predict/mlnotmp/")
 async def predict_image(file: UploadFile = File(...)):
     # Cek apakah folder 'tmp' ada
     if not os.path.exists('tmp'):
@@ -160,6 +163,7 @@ async def predict_image(file: UploadFile = File(...)):
         return {"label": "Failed to read image"}
 
     # Preprocess gambar dan deteksi landmark
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img_preprocessed = preprocess_img(img)
     
     if img_preprocessed is None:
@@ -223,7 +227,7 @@ async def predict_image(file: UploadFile = File(...)):
         
     return {"predict": str(predict), "label": label[np.argmax(predict)]}
 
-@app.post("/predict/mlwithtmp/")
+@app.post("/predict/ml/")
 async def predict_image(file: UploadFile = File(...)):
     # Cek apakah folder 'tmp' ada
     if not os.path.exists('tmp'):
@@ -259,5 +263,275 @@ async def predict_image(file: UploadFile = File(...)):
 
     if isinstance(predict, np.ndarray):
         predict = predict.tolist()
+        
+    predicted_label = label[predict[0]]
+    
+    label_folder = f"tmp/{predicted_label}"
+    if not os.path.exists(label_folder):
+        os.makedirs(label_folder)
+        
+    new_file_location = f"{label_folder}/{file.filename}"
+    shutil.move(file_location, new_file_location)
 
     return {"predict": str(predict), "label": label[predict[0]]}
+
+from fastapi import FastAPI, HTTPException, Query
+import random
+import pandas as pd
+
+app = FastAPI()
+
+"""
+Memvalidasi token akses Spotify dengan memeriksa respons dari API.
+    
+Args:
+    access_token (str): Token Akses Spotify pengguna.
+"""
+
+@app.get("/spotify/test")
+def get_test(access_token: str = Query(..., description="Spotify Access Token")):
+
+    url = "https://api.spotify.com/v1/me"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        return {"message": "Request and access token accepted by FastAPI"}
+    elif response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Access Token")
+    else:
+        raise HTTPException(status_code=response.status_code, detail="Failed to validate token with Spotify API")
+
+"""
+Mengambil detail lagu berdasarkan ID track Spotify.
+    
+Args:
+    id (str): ID track Spotify.
+    access_token (str): Token Akses Spotify pengguna.
+"""
+
+@app.get("/spotify/get-track")
+def get_track(id: str = Query(..., description="Spotify track ID"), access_token: str = Query(..., description="Spotify Access Token")):
+    
+    url = f"https://api.spotify.com/v1/tracks/{id}"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Access Token")
+    elif response.status_code == 404:
+        raise HTTPException(status_code=404, detail="Track not found")
+    else:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+
+"""
+Mendapatkan rekomendasi lagu berdasarkan emosi
+Args:
+    emotion (str): Emosi pengguna (happy, sad, angry, neutral).
+    access_token (str): Spotify Access Token.
+    num_songs (int): Jumlah lagu yang direkomendasikan (isi dengan jumlah lagunya, default 10).
+"""
+
+data = pd.read_csv('file/data_moods.csv')
+
+mood_mapping = {
+    "sad": ["Calm", "Happy", "Sad"],
+    "angry": ["Calm", "Energetic"],
+    "happy": ["Calm", "Happy", "Sad"],
+    "neutral": None 
+}
+
+@app.post("/spotify/recommend-songs/")
+async def recommend_songs_endpoint(
+    emotion: str,
+    access_token: str,
+    num_songs: int = 10
+):
+    def recommend_songs(emotion, data, num_songs=10):
+        if emotion.lower() == "neutral":
+            song_ids = random.sample(data["id"].tolist(), min(num_songs, len(data)))
+        else:
+            allowed_moods = mood_mapping.get(emotion.lower(), [])
+            filtered_data = data[data["mood"].str.capitalize().isin(allowed_moods)]
+            if not filtered_data.empty:
+                song_ids = random.sample(filtered_data["id"].tolist(), min(num_songs, len(filtered_data)))
+            else:
+                song_ids = []
+        return song_ids
+
+    song_ids = recommend_songs(emotion, data, num_songs=num_songs)
+    
+    if song_ids:
+        tracks_info = []
+        for song_id in song_ids:
+            try:
+                track_info = get_track(id=song_id, access_token=access_token)
+                tracks_info.append({
+                    "id": song_id,
+                    "name": track_info.get("name"),
+                    "artists": [artist["name"] for artist in track_info.get("artists", [])],
+                    "album": track_info.get("album", {}).get("name"),
+                    "preview_url": track_info.get("preview_url"),
+                    "external_url": track_info.get("external_urls", {}).get("spotify")
+                })
+            except HTTPException as e:
+                continue
+
+        if tracks_info:
+            return {"songs": tracks_info}
+        else:
+            raise HTTPException(status_code=404, detail="Failed to retrieve details for recommended songs")
+    else:
+        raise HTTPException(status_code=404, detail="No recommendations available for the given emotion")
+
+"""
+Mengambil daftar playlist milik pengguna dari Spotify.
+
+Args:
+    access_token (str): Token Akses Spotify pengguna.
+"""
+
+@app.get("/spotify/get-playlists/")
+def get_playlists(access_token: str = Query(..., description="Spotify Access Token")):
+
+    url = "https://api.spotify.com/v1/me/playlists"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        playlists = response.json()
+        return {
+            "playlists": [
+                {
+                    "name": playlist["name"],
+                    "id": playlist["id"],
+                    "description": playlist.get("description", ""),
+                    "tracks_count": playlist["tracks"]["total"]
+                }
+                for playlist in playlists.get("items", [])
+            ]
+        }
+    elif response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Access Token")
+    else:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+import requests
+from fastapi import FastAPI, HTTPException, Query
+
+"""
+Menambahkan lagu ke dalam playlist di Spotify.
+
+Args:
+    playlist_id (str): ID dari playlist Spotify yang akan ditambahkan lagu.
+    track_id (str): ID dari track (lagu) Spotify yang ingin ditambahkan ke playlist.
+    access_token (str): Spotify Access Token untuk autentikasi.
+"""
+
+@app.post("/spotify/add-to-playlist/")
+def add_to_playlist(
+    playlist_id: str = Query(..., description="Spotify Playlist ID"),
+    track_id: str = Query(..., description="Spotify Track ID"),
+    access_token: str = Query(..., description="Spotify Access Token")
+):
+    
+    url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "uris": [f"spotify:track:{track_id}"]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 201:
+        return {"message": "Track successfully added to playlist"}
+    elif response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid Access Token")
+    elif response.status_code == 404:
+        raise HTTPException(status_code=404, detail="Playlist or Track not found")
+    else:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+
+"""
+Membuat playlist dan menambahkan lagu baru di Spotify.
+
+Args:
+    name (str): Nama playlist yang ingin dibuat.
+    description (str): Deskripsi playlist (opsional, default kosong).
+    public (bool): Status publik atau privat untuk playlist (default True = publik).
+    access_token (str): Spotify Access Token untuk autentikasi.
+    tracks ids (str): Id dari track yang akan ditambahkan kedalam playlist.
+"""
+
+@app.post("/spotify/create-playlist/")
+def create_playlist_with_tracks(
+    name: str = Query(..., description="Nama playlist yang akan dibuat"),
+    description: str = Query("", description="Deskripsi playlist"),
+    public: bool = Query(True, description="Apakah playlist bersifat publik?"),
+    track_ids: list[str] = Query(..., description="Daftar Spotify Track IDs untuk ditambahkan ke playlist"),
+    access_token: str = Query(..., description="Spotify Access Token")
+):
+    user_profile_url = "https://api.spotify.com/v1/me"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    user_response = requests.get(user_profile_url, headers=headers)
+    if user_response.status_code != 200:
+        raise HTTPException(status_code=user_response.status_code, detail="Gagal mengambil profil pengguna")
+
+    user_id = user_response.json().get("id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Gagal mendapatkan user ID dari profil")
+
+    create_playlist_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
+    payload = {
+        "name": name,
+        "description": description,
+        "public": public
+    }
+
+    response = requests.post(create_playlist_url, headers=headers, json=payload)
+    if response.status_code != 201:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+
+    playlist_id = response.json().get("id")
+
+    if track_ids:
+        add_tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        uris = [f"spotify:track:{track_id}" for track_id in track_ids]
+        add_tracks_payload = {
+            "uris": uris
+        }
+
+        add_tracks_response = requests.post(add_tracks_url, headers=headers, json=add_tracks_payload)
+        if add_tracks_response.status_code != 201:
+            raise HTTPException(
+                status_code=add_tracks_response.status_code,
+                detail=f"Gagal menambahkan lagu ke playlist: {add_tracks_response.json()}"
+            )
+
+    return {
+        "message": "Playlist berhasil dibuat dan lagu berhasil ditambahkan",
+        "playlist_id": playlist_id,
+        "playlist_url": f"https://open.spotify.com/playlist/{playlist_id}"
+    }
