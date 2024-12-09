@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
-import dlib
+# import dlib
 import mediapipe as mp
 import numpy as np
 import pandas as pd
@@ -15,8 +15,8 @@ app = FastAPI()
 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor("file/shape_predictor_68_face_landmarks.dat")
+# detector = dlib.get_frontal_face_detector()
+# predictor = dlib.shape_predictor("file/shape_predictor_68_face_landmarks.dat")
 label = ['angry', 'happy', 'neutral', 'sad']
 
 with open('model/model.pkl', 'rb') as file:
@@ -529,3 +529,33 @@ def create_playlist_with_tracks(
         "playlist_id": playlist_id,
         "playlist_url": f"https://open.spotify.com/playlist/{playlist_id}"
     }
+    
+"""
+Mendapatkan sejumlah lagu secara acak dari data CSV.
+    
+ Args:
+     num_songs (int): Jumlah lagu yang diinginkan (default 10).
+        
+Returns:
+     dict: Daftar lagu yang dipilih secara acak.
+"""
+    
+@app.post("/spotify/random-songs/")
+async def random_songs_endpoint(num_songs: int = Query(default=10, ge=1)):
+    total_songs = len(data)
+    if total_songs == 0:
+        raise HTTPException(status_code=404, detail="No songs available.")
+    
+    num_songs = min(num_songs, total_songs)
+    random_songs = data.sample(n=num_songs).to_dict(orient="records")
+    
+    result = [
+        {
+            "id": song.get("id"),
+            "name": song.get("name"),
+            "artist": song.get("artist"),
+            "album": song.get("album"),
+        }
+        for song in random_songs
+    ]
+    return {"songs": result}
