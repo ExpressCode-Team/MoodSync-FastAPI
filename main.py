@@ -1,6 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 import dlib
-import mediapipe as mp
 import numpy as np
 import pandas as pd
 import random
@@ -13,8 +12,7 @@ from math import acos, degrees
 
 app = FastAPI()
 
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'file/haarcascade_frontalface_default.xml')
-mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor("file/shape_predictor_68_face_landmarks.dat")
 label = ['angry', 'happy', 'neutral', 'sad']
@@ -22,8 +20,8 @@ label = ['angry', 'happy', 'neutral', 'sad']
 with open('model/model.pkl', 'rb') as file:
     modelml = pickle.load(file)
     
-with open('model/modeldl.pkl', 'rb') as file:
-    modeldl = pickle.load(file)
+# with open('model/modeldl.pkl', 'rb') as file:
+#     modeldl = pickle.load(file)
 
 with open('model/scaler.pkl', 'rb') as file:
     scaler = pickle.load(file)
@@ -193,39 +191,39 @@ async def predict_image(file: UploadFile = File(...)):
 
     return {"predict": str(predict), "label": label[predict[0]]}
 
-@app.post("/predict/dl/")
-async def predict_image(file: UploadFile = File(...)):
-    # Cek apakah folder 'tmp' ada
-    if not os.path.exists('tmp'):
-        os.makedirs('tmp')
+# @app.post("/predict/dl/")
+# async def predict_image(file: UploadFile = File(...)):
+#     # Cek apakah folder 'tmp' ada
+#     if not os.path.exists('tmp'):
+#         os.makedirs('tmp')
 
-    # Simpan file sementara
-    file_location = f"tmp/{file.filename}"
-    with open(file_location, "wb") as file_object:
-        shutil.copyfileobj(file.file, file_object)
+#     # Simpan file sementara
+#     file_location = f"tmp/{file.filename}"
+#     with open(file_location, "wb") as file_object:
+#         shutil.copyfileobj(file.file, file_object)
 
-    # Baca gambar
-    img = cv2.imread(file_location)
-    if img is None:
-        os.remove(file_location)
-        return {"label": "Failed to read image"}
+#     # Baca gambar
+#     img = cv2.imread(file_location)
+#     if img is None:
+#         os.remove(file_location)
+#         return {"label": "Failed to read image"}
 
-    img_preprocessed = preprocess_img(img)
-    print(img_preprocessed.shape)
-    if img_preprocessed is None:
-        os.remove(file_location)
-        return {"label": "Failed to preprocess image"}
+#     img_preprocessed = preprocess_img(img)
+#     print(img_preprocessed.shape)
+#     if img_preprocessed is None:
+#         os.remove(file_location)
+#         return {"label": "Failed to preprocess image"}
     
-    img_prepare = prepare_data(img_preprocessed)
+#     img_prepare = prepare_data(img_preprocessed)
     
-    predict = modeldl.predict(img_prepare)
+#     predict = modeldl.predict(img_prepare)
 
-    os.remove(file_location)
+#     os.remove(file_location)
 
-    if isinstance(predict, np.ndarray):
-        predict = predict.tolist()
+#     if isinstance(predict, np.ndarray):
+#         predict = predict.tolist()
         
-    return {"predict": str(predict), "label": label[np.argmax(predict)]}
+#     return {"predict": str(predict), "label": label[np.argmax(predict)]}
 
 @app.post("/predict/ml/")
 async def predict_image(file: UploadFile = File(...)):
@@ -274,12 +272,6 @@ async def predict_image(file: UploadFile = File(...)):
     shutil.move(file_location, new_file_location)
 
     return {"predict": str(predict), "label": label[predict[0]]}
-
-from fastapi import FastAPI, HTTPException, Query
-import random
-import pandas as pd
-
-app = FastAPI()
 
 """
 Memvalidasi token akses Spotify dengan memeriksa respons dari API.
@@ -535,3 +527,33 @@ def create_playlist_with_tracks(
         "playlist_id": playlist_id,
         "playlist_url": f"https://open.spotify.com/playlist/{playlist_id}"
     }
+    
+"""
+Mendapatkan sejumlah lagu secara acak dari data CSV.
+    
+ Args:
+     num_songs (int): Jumlah lagu yang diinginkan (default 10).
+        
+Returns:
+     dict: Daftar lagu yang dipilih secara acak.
+"""
+    
+@app.post("/spotify/random-songs/")
+async def random_songs_endpoint(num_songs: int = Query(default=10, ge=1)):
+    total_songs = len(data)
+    if total_songs == 0:
+        raise HTTPException(status_code=404, detail="No songs available.")
+    
+    num_songs = min(num_songs, total_songs)
+    random_songs = data.sample(n=num_songs).to_dict(orient="records")
+    
+    result = [
+        {
+            "id": song.get("id"),
+            "name": song.get("name"),
+            "artist": song.get("artist"),
+            "album": song.get("album"),
+        }
+        for song in random_songs
+    ]
+    return {"songs": result}
